@@ -20,16 +20,27 @@ def fetch_github_issues(repo_owner, repo_name, token, max_issues=100):
     
     while url and len(issues) < max_issues:
         response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
-        issues.extend(response.json())
+        if response.status_code != 200:
+            print(f"Error: {response.status_code}, {response.json()}")
+            break
+        
+        json_response = response.json()
+        if not json_response:
+            print("No issues found.")
+            break
+        
+        issues.extend(json_response)
         # Pagination
         url = response.links.get('next', {}).get('url', None)
     
+    if not issues:
+        print("No issues retrieved from the repository.")
     return pd.DataFrame([{
         "title": issue.get("title", ""),
         "body": issue.get("body", ""),
         "labels": [label['name'] for label in issue.get("labels", [])]
     } for issue in issues])
+
 
 # Step 2: Data Preprocessing
 def preprocess_text(text):
@@ -50,21 +61,25 @@ def frequent_pattern_mining(texts, min_support=0.1):
 # Main Execution
 if __name__ == "__main__":
     # Replace these with your repo details and GitHub token
-    REPO_OWNER = "octocat"
-    REPO_NAME = "Hello-World"
-    GITHUB_TOKEN = "your_github_personal_access_token"
+    REPO_OWNER = "RepoOwner"
+    REPO_NAME = "RepoName"
+    GITHUB_TOKEN = "Token"
 
     # Fetch issues
     issues_df = fetch_github_issues(REPO_OWNER, REPO_NAME, GITHUB_TOKEN)
     print(f"Fetched {len(issues_df)} issues.")
-    
-    # Preprocess text
-    issues_df["processed_body"] = issues_df["body"].fillna("").apply(preprocess_text)
-    print("Text preprocessing complete.")
+    print(issues_df.head())  # Inspect the fetched data
 
-    # Frequent pattern mining
-    frequent_items, rules = frequent_pattern_mining(issues_df["processed_body"])
-    print("Frequent Patterns:")
-    print(frequent_items)
-    print("\nAssociation Rules:")
-    print(rules)
+    if not issues_df.empty and "body" in issues_df.columns:
+        # Preprocess text
+        issues_df["processed_body"] = issues_df["body"].fillna("").apply(preprocess_text)
+        print("Text preprocessing complete.")
+
+        # Frequent pattern mining
+        frequent_items, rules = frequent_pattern_mining(issues_df["processed_body"])
+        print("Frequent Patterns:")
+        print(frequent_items)
+        print("\nAssociation Rules:")
+        print(rules)
+    else:
+        print("No valid issues to process.")
